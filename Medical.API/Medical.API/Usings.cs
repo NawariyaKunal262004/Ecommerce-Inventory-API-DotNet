@@ -1,0 +1,29 @@
+// API Layer Global Usings
+global using MediatR;
+global using Medical.Application.Commands;
+global using Medical.Application.Queries;
+global using Medical.Application.DTOs;
+global using Medical.Core.Common;
+global using Medical.Application.Responses;
+global using Medical.Application.Extensions;
+global using Medical.Application.Exceptions;
+global using FluentValidation;
+global using Medical.API.Middlewares;
+global using Medical.API.Extensions;
+global using Medical.Infra.Extensions;
+global using Medical.Core.Settings;
+global using Microsoft.AspNetCore.Authentication.JwtBearer;
+global using Microsoft.AspNetCore.Authorization;
+global using Microsoft.IdentityModel.Tokens;
+global using System.Security.Claims;
+global using System.Text;
+global using Microsoft.AspNetCore.Mvc;
+global using Microsoft.AspNetCore.Http;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.Extensions.Logging;
+global using System.Diagnostics;
+global using System.Net;
+global using System.Text.Json;
+global using Microsoft.OpenApi;
+global using Medical.Application.Services;
+

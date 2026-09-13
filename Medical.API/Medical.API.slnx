@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Medical.API/Medical.API.csproj" />
+  <Project Path="Medical.Application/Medical.Application.csproj" />
+  <Project Path="Medical.Core/Medical.Core.csproj" />
+  <Project Path="Medical.Infra/Medical.Infra.csproj" />
+</Solution>

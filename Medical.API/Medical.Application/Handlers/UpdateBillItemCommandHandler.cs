@@ -1,0 +1,105 @@
+namespace Medical.Application.Handlers;
+public class UpdateBillItemCommandHandler : IRequestHandler<UpdateBillItemCommand, BillResponse>
+{
+    private readonly IBillRepository _billRepository;
+    private readonly IBillInventoryService _billInventoryService;
+    private readonly IBillService _billService;
+    private readonly IOptions<BillingSettings> _billingSettings;
+    private readonly ApplicationDbContext _context;
+
+    public UpdateBillItemCommandHandler(
+        IBillRepository billRepository,
+        IBillInventoryService billInventoryService,
+        IBillService billService,
+        IOptions<BillingSettings> billingSettings,
+        ApplicationDbContext context)
+    {
+        _billRepository = billRepository;
+        _billInventoryService = billInventoryService;
+        _billService = billService;
+        _billingSettings = billingSettings;
+        _context = context;
+    }
+
+    public async Task<BillResponse> Handle(UpdateBillItemCommand request, CancellationToken cancellationToken)
+    {
+        using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            if (request.NewQuantity <= 0)
+                throw new InvalidBillOperationException("Quantity must be greater than zero.");
+
+            var billItem = await _billRepository.GetBillItemByIdAsync(request.BillItemId);
+            if (billItem == null)
+                throw new BillItemNotFoundException($"Bill item with ID {request.BillItemId} not found.");
+
+            if (billItem.Bill == null)
+                throw new BillNotFoundException($"Bill not found for bill item {request.BillItemId}.");
+
+            if (billItem.Medicine == null)
+                throw new InvalidOperationException($"Medicine not found for bill item {request.BillItemId}.");
+
+            var quantityDifference = request.NewQuantity - billItem.Quantity;
+
+            if (quantityDifference > 0)
+            {
+                if (billItem.Medicine.ExpirationDate < DateOnly.FromDateTime(DateTime.UtcNow))
+                    throw new InvalidOperationException($"Medicine {billItem.Medicine.MedicineName} has expired.");
+
+                try
+                {
+                    await _billInventoryService.DeductStockAsync(
+                        billItem.MedicineId, quantityDifference, billItem.BillId, cancellationToken);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("Insufficient stock"))
+                {
+                    throw new InsufficientStockException(ex.Message);
+                }
+            }
+            else if (quantityDifference < 0)
+            {
+                await _billInventoryService.RestoreStockAsync(
+                    billItem.MedicineId, Math.Abs(quantityDifference), billItem.BillId, cancellationToken);
+            }
+
+            var totalPrice = request.NewQuantity * billItem.UnitPrice;
+            await _billService.UpdateBillItemAsync(
+                request.BillItemId, request.NewQuantity, totalPrice, cancellationToken);
+            await _billService.RecalculateAndPersistTotalsAsync(
+                billItem.BillId, _billingSettings.Value.TaxRate, cancellationToken);
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            var finalBill = await _billRepository.GetBillByIdAsync(billItem.BillId);
+            return MapToResponse(finalBill!);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    private static BillResponse MapToResponse(BillEntity bill)
+    {
+        return new BillResponse
+        {
+            BillId = bill.BillId,
+            CreatedDate = bill.CreatedDate,
+            TotalAmount = bill.TotalAmount,
+            Discount = bill.Discount,
+            Tax = bill.Tax,
+            FinalAmount = bill.FinalAmount,
+            Items = bill.BillItems.Select(bi => new BillItemResponse
+            {
+                BillItemId = bi.BillItemId,
+                MedicineId = bi.MedicineId,
+                MedicineName = bi.Medicine?.MedicineName ?? "Unknown",
+                Quantity = bi.Quantity,
+                UnitPrice = bi.UnitPrice,
+                TotalPrice = bi.TotalPrice
+            }).ToList()
+        };
+    }
+}

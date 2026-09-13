@@ -1,0 +1,29 @@
+# Build output and IDE files
+**/bin/
+**/obj/
+.vs/
+*.user
+*.userosscache
+*.suo
+*.cache
+*.log
+*.pdb
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.cer
+secrets.json
+appsettings.Local.json
+
+# Runtime data
+**/Logs/
+*.db
+*.sqlite
+
+# OS files
+.DS_Store
+Thumbs.db
